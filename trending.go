@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"golang.org/x/net/http2"
 )
 
 // These are predefined constants to define the timerange of the requested repository or developer.
@@ -142,7 +143,8 @@ type Developer struct {
 //	...
 func NewTrending() *Trending {
 	client := &http.Client{
-		Timeout: 30 * time.Second,
+		Timeout:   30 * time.Second,
+		Transport: &http2.Transport{},
 	}
 
 	return NewTrendingWithClient(client)
