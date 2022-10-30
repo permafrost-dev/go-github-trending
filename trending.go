@@ -142,9 +142,21 @@ type Developer struct {
 //	projects, err := trend.GetProjects(trending.TimeToday, "")
 //	...
 func NewTrending() *Trending {
-	client := &http.Client{
+	var client *http.Client
+
+	client = &http.Client{
 		Timeout:   30 * time.Second,
 		Transport: &http2.Transport{},
+	}
+
+	return NewTrendingWithClient(client)
+}
+
+func NewTrendingHttp11() *Trending {
+	var client *http.Client
+
+	client = &http.Client{
+		Timeout: 30 * time.Second,
 	}
 
 	return NewTrendingWithClient(client)

@@ -30,7 +30,7 @@ func setup() {
 	server = httptest.NewServer(mux)
 
 	// trending client configured to use test server
-	client = NewTrending()
+	client = NewTrendingHttp11()
 	url, _ := url.Parse(server.URL)
 	client.BaseURL = url
 }
@@ -73,7 +73,7 @@ func testFormValues(t *testing.T, r *http.Request, values values) {
 }
 
 func TestNewTrending(t *testing.T) {
-	c := NewTrending()
+	c := NewTrendingHttp11()
 	if c == nil {
 		t.Error("Trending client is nil. Expected trending.Trending structure")
 	}
