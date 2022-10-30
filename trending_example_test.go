@@ -6,12 +6,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/andygrunwald/go-trending"
+	"golang.org/x/net/http2"
+
+	trending "github.com/permafrost-dev/go-github-trending"
 )
 
 func ExampleTrending_GetProjects() {
 	client := &http.Client{
-		Timeout: 30 * time.Second,
+		Timeout:   30 * time.Second,
+		Transport: &http2.Transport{},
 	}
 	trend := trending.NewTrendingWithClient(client)
 	projects, err := trend.GetProjects(trending.TimeToday, "go")
@@ -44,7 +47,7 @@ func ExampleTrending_GetProjects() {
 	if len(projects) > 0 && onlyGoProjects {
 		fmt.Println("Projects (filtered by Go) received.")
 	} else {
-		fmt.Printf("Number of projectes received: %d / projects with a different main language than golang %d)", len(projects), projectsNotInGo)
+		fmt.Printf("Number of projects received: %d / projects with a different main language than golang %d)", len(projects), projectsNotInGo)
 	}
 
 	// Output: Projects (filtered by Go) received.
@@ -52,7 +55,8 @@ func ExampleTrending_GetProjects() {
 
 func ExampleTrending_GetLanguages() {
 	client := &http.Client{
-		Timeout: 30 * time.Second,
+		Timeout:   30 * time.Second,
+		Transport: &http2.Transport{},
 	}
 	trend := trending.NewTrendingWithClient(client)
 	languages, err := trend.GetLanguages()
@@ -72,7 +76,8 @@ func ExampleTrending_GetLanguages() {
 
 func ExampleTrending_GetDevelopers() {
 	client := &http.Client{
-		Timeout: 30 * time.Second,
+		Timeout:   30 * time.Second,
+		Transport: &http2.Transport{},
 	}
 	trend := trending.NewTrendingWithClient(client)
 	developers, err := trend.GetDevelopers(trending.TimeToday, "")

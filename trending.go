@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -41,17 +42,16 @@ const (
 // It doesn`t provide an exported state, but based on this the methods are called.
 // To receive a new instance just add
 //
-//		package main
+//	package main
 //
-//		import (
-//			"github.com/andygrunwald/go-trending"
-//		)
+//	import (
+//		"github.com/permafrost-dev/go-github-trending"
+//	)
 //
-//		func main() {
-//			trend := trending.NewTrending()
-//			...
-//		}
-//
+//	func main() {
+//		trend := trending.NewTrending()
+//		...
+//	}
 type Trending struct {
 	// Base URL for requests.
 	// Defaults to the public GitHub website, but can be set to a domain endpoint to use with GitHub Enterprise.
@@ -65,10 +65,10 @@ type Trending struct {
 // Project reflects a single trending repository.
 // It provides information as printed on the source website https://github.com/trending.
 type Project struct {
-	// Name is the name of the repository including user / organisation like "andygrunwald/go-trending" or "airbnb/javascript".
+	// Name is the name of the repository including user / organization like "andygrunwald/go-trending" or "airbnb/javascript".
 	Name string
 
-	// Owner is the name of the user or organisation. "andygrunwald" in "andygrunwald/go-trending" or "airbnb" in "airbnb/javascript".
+	// Owner is the name of the user or organization. "andygrunwald" in "andygrunwald/go-trending" or "airbnb" in "airbnb/javascript".
 	Owner string
 
 	// RepositoryName is the name of therepository. "go-trending" in "andygrunwald/go-trending" or "javascript" in "airbnb/javascript".
@@ -81,9 +81,11 @@ type Project struct {
 	// Sometimes Language is an empty string, because Github can`t determine the (main) programing language (like for "google/deepdream").
 	Language string
 
-	// Stars is the number of github stars this project received in the given timeframe (see TimeToday / TimeWeek / TimeMonth constants).
-	// This number don`t reflect the overall stars of the project.
+	// Stars is the total number of github stars this project has received.
 	Stars int
+
+	// StarsPeriod is the number of github stars this project received in the given timeframe (see TimeToday / TimeWeek / TimeMonth constants).
+	StarsPeriod int
 
 	// URL is the http(s) address of the project reflected as url.URL datastructure like "https://github.com/Workiva/go-datastructures".
 	URL *url.URL
@@ -112,22 +114,22 @@ type Language struct {
 	URL *url.URL
 }
 
-// Developer reflects a single trending developer / organisation.
+// Developer reflects a single trending developer / organization.
 // It provides information as printed on the source website https://github.com/trending/developers.
 type Developer struct {
-	// ID is the github`s unique identifier of the user / organisation like 1342004 (google) or 698437 (airbnb).
+	// ID is the github`s unique identifier of the user / organization like 1342004 (google) or 698437 (airbnb).
 	ID int
 
-	// // DisplayName is the username of the developer / organisation like "torvalds" or "apache".
+	// DisplayName is the username of the developer / organization like "torvalds" or "apache".
 	DisplayName string
 
-	// FullName is the real name of the developer / organisation like "Linus Torvalds" (for "torvalds") or "The Apache Software Foundation" (for "apache").
+	// FullName is the real name of the developer / organization like "Linus Torvalds" (for "torvalds") or "The Apache Software Foundation" (for "apache").
 	FullName string
 
-	// URL is the http(s) address of the developer / organisation reflected as url.URL datastructure like https://github.com/torvalds.
+	// URL is the http(s) address of the developer / organization reflected as url.URL datastructure like https://github.com/torvalds.
 	URL *url.URL
 
-	// Avatar is the http(s) address of the developer / organisation avatar as url.URL datastructure like https://avatars1.githubusercontent.com/u/1024025?v=3&s=192.
+	// Avatar is the http(s) address of the developer / organization avatar as url.URL datastructure like https://avatars1.githubusercontent.com/u/1024025?v=3&s=192.
 	Avatar *url.URL
 }
 
@@ -135,12 +137,15 @@ type Developer struct {
 // It provides access to the API of this package by returning a Trending datastructure.
 // Usage:
 //
-//		trend := trending.NewTrending()
-//		projects, err := trend.GetProjects(trending.TimeToday, "")
-//		...
-//
+//	trend := trending.NewTrending()
+//	projects, err := trend.GetProjects(trending.TimeToday, "")
+//	...
 func NewTrending() *Trending {
-	return NewTrendingWithClient(http.DefaultClient)
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	return NewTrendingWithClient(client)
 }
 
 // NewTrendingWithClient allows providing a custom http.Client to use for fetching trending items.
@@ -168,10 +173,7 @@ func (t *Trending) GetProjects(time, language string) ([]Project, error) {
 	var projects []Project
 
 	// Generate the correct URL to call
-	u, err := t.generateURL(modeRepositories, time, language)
-	if err != nil {
-		return projects, err
-	}
+	u := t.generateURL(modeRepositories, time, language)
 
 	// Receive document
 	res, err := t.Client.Get(u.String())
@@ -217,6 +219,20 @@ func (t *Trending) GetProjects(time, language string) ([]Project, error) {
 			stars = 0
 		}
 
+		starsPeriodString := s.Find("span.d-inline-block.float-sm-right").Text()
+		starsPeriodString = strings.TrimSpace(starsPeriodString)
+		// Replace english thousand separator ","
+		starsPeriodString = strings.Replace(starsPeriodString, ",", "", 1)
+		starsPeriodString = strings.Replace(starsPeriodString, " stars today", "", 1)
+		starsPeriodString = strings.Replace(starsPeriodString, " stars this week", "", 1)
+		starsPeriodString = strings.Replace(starsPeriodString, " stars this month", "", 1)
+		starsPeriodString = strings.TrimSpace(starsPeriodString)
+
+		starsPeriod, err := strconv.Atoi(starsPeriodString)
+		if err != nil {
+			starsPeriod = 0
+		}
+
 		contributorSelection := s.Find("div.f6 a").Eq(2)
 		contributorPath, exists := contributorSelection.Attr("href")
 		contributorURL := t.appendBaseHostToPath(contributorPath, exists)
@@ -240,6 +256,7 @@ func (t *Trending) GetProjects(time, language string) ([]Project, error) {
 			Description:    description,
 			Language:       language,
 			Stars:          stars,
+			StarsPeriod:    starsPeriod,
 			URL:            projectURL,
 			ContributorURL: contributorURL,
 			Contributor:    developer,
@@ -263,10 +280,7 @@ func (t *Trending) generateLanguages(mainSelector string) ([]Language, error) {
 	var languages []Language
 
 	// Generate the URL to call
-	u, err := t.generateURL(modeLanguages, "", "")
-	if err != nil {
-		return languages, err
-	}
+	u := t.generateURL(modeLanguages, "", "")
 
 	// Get document
 	res, err := t.Client.Get(u.String())
@@ -321,10 +335,7 @@ func (t *Trending) GetDevelopers(time, language string) ([]Developer, error) {
 	var developers []Developer
 
 	// Generate URL
-	u, err := t.generateURL(modeDevelopers, time, language)
-	if err != nil {
-		return developers, err
-	}
+	u := t.generateURL(modeDevelopers, time, language)
 
 	// Get document
 	res, err := t.Client.Get(u.String())
@@ -444,7 +455,7 @@ func (t *Trending) getProjectName(name string) string {
 // generateURL will generate the correct URL to call the github site.
 //
 // Depending on mode, time and language it will set the correct pathes and query parameters.
-func (t *Trending) generateURL(mode, time, language string) (*url.URL, error) {
+func (t *Trending) generateURL(mode, time, language string) *url.URL {
 	urlStr := urlTrendingPath
 	if mode == modeDevelopers {
 		urlStr += urlDevelopersPath
@@ -452,6 +463,7 @@ func (t *Trending) generateURL(mode, time, language string) (*url.URL, error) {
 
 	u := t.appendBaseHostToPath(urlStr, true)
 	q := u.Query()
+
 	if len(time) > 0 {
 		q.Set("since", time)
 	}
@@ -462,5 +474,5 @@ func (t *Trending) generateURL(mode, time, language string) (*url.URL, error) {
 
 	u.RawQuery = q.Encode()
 
-	return u, nil
+	return u
 }
